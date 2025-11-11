@@ -1,0 +1,162 @@
+# Example Configuration File for Trading Framework
+# Copy this file and customize for your needs
+
+# Broker Configuration
+broker:
+  # Choose broker: simulated, interactive_brokers, binance, alpaca, coinbase, metatrader
+  name: simulated
+
+  # Simulated Broker (for backtesting)
+  simulated:
+    commission_per_share: 0.01
+    slippage_pct: 0.001
+    fill_immediately: true
+
+  # Interactive Brokers
+  interactive_brokers:
+    host: 127.0.0.1
+    port: 7497  # 7497 for paper trading, 7496 for live
+    client_id: 1
+    account: DU123456
+
+  # Binance
+  binance:
+    api_key: ${BINANCE_API_KEY}  # Use environment variable
+    api_secret: ${BINANCE_API_SECRET}
+    testnet: true
+    trading_type: spot  # spot, futures, or margin
+
+  # Alpaca
+  alpaca:
+    api_key: ${ALPACA_API_KEY}
+    api_secret: ${ALPACA_API_SECRET}
+    base_url: https://paper-api.alpaca.markets
+    data_feed: iex  # iex or sip
+
+  # MetaTrader 5
+  metatrader:
+    login: 12345678
+    password: ${MT5_PASSWORD}
+    server: MetaQuotes-Demo
+    terminal_path: C:\Program Files\MetaTrader 5\terminal64.exe
+
+# Data Source Configuration
+data_source:
+  # Type: csv, postgresql, yahoo_finance, simulator
+  type: csv
+
+  # CSV Data Source
+  csv:
+    data_dir: ./data
+    filename_pattern: "{symbol}_{resolution}.csv"
+    date_format: "%Y-%m-%d %H:%M:%S"
+
+  # PostgreSQL Data Source
+  postgresql:
+    host: localhost
+    port: 5432
+    database: trading_data
+    user: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    table_prefix: market_data_
+
+  # Yahoo Finance
+  yahoo_finance:
+    auto_adjust: true
+    threads: true
+
+# Strategy Configuration
+strategy:
+  name: sma_crossover
+  parameters:
+    fast_period: 10
+    slow_period: 30
+    position_size_pct: 0.5
+
+# Risk Management
+risk_management:
+  # Maximum position size as percentage of portfolio
+  max_position_size_pct: 0.1
+
+  # Maximum leverage allowed
+  max_leverage: 1.0
+
+  # Maximum number of open positions
+  max_open_positions: 10
+
+  # Stop loss percentage
+  stop_loss_pct: 0.02
+
+  # Take profit percentage
+  take_profit_pct: 0.05
+
+  # Maximum daily loss (circuit breaker)
+  max_daily_loss_pct: 0.05
+
+# Backtesting Configuration
+backtest:
+  # Time period
+  start_date: 2023-01-01
+  end_date: 2023-12-31
+
+  # Assets to trade
+  assets:
+    - symbol: AAPL
+      asset_type: STOCK
+      exchange: NASDAQ
+      currency: USD
+
+    - symbol: BTCUSDT
+      asset_type: CRYPTO
+      exchange: BINANCE
+      currency: USDT
+
+  # Bar resolution: TICK, 1S, 5S, 15S, 30S, 1M, 5M, 15M, 30M, 1H, 4H, 1D, 1W, 1MO
+  resolution: 1D
+
+  # Initial capital
+  initial_capital: 100000
+  currency: USD
+
+  # Trading costs
+  commission_per_share: 0.01
+  slippage_pct: 0.001
+
+  # Execution mode
+  fill_immediately: true
+
+# Logging Configuration
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: logs/trading.log
+  console: true
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+# Database Configuration (for storing results)
+database:
+  type: postgresql
+  host: localhost
+  port: 5432
+  database: trading_results
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
+
+# Performance Monitoring
+monitoring:
+  # Enable performance monitoring
+  enabled: true
+
+  # Metrics to track
+  metrics:
+    - equity
+    - drawdown
+    - positions
+    - orders
+    - pnl
+
+  # Alert thresholds
+  alerts:
+    max_drawdown_pct: 0.15
+    min_equity: 80000

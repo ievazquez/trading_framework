@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Data files
+*.csv
+*.db
+*.sqlite
+*.h5
+*.parquet
+data/
+!examples/data/
+
+# Logs
+*.log
+logs/
+
+# Configuration (don't commit secrets!)
+config.yaml
+config.json
+.env
+*.key
+*.pem
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Backtest results
+backtest_results/
+equity_curves/
+*.png
+*.pdf
+
+# Broker specific
+mt5_data/
+ib_logs/
