@@ -1,0 +1,32 @@
+# Minimal dependencies for Trading Framework
+# Install with: pip install -r requirements-minimal.txt
+# This includes only the core framework without broker-specific dependencies
+
+# Core dependencies
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Data handling
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Configuration
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Async support
+aiohttp>=3.8.5
+
+# Notifications
+colorama>=0.4.6
+
+# Performance & monitoring
+tqdm>=4.65.0
+loguru>=0.7.0
+
+# Note: Install broker-specific dependencies separately as needed:
+# - Interactive Brokers: pip install ib-insync>=0.9.86
+# - Binance: pip install python-binance>=1.0.17
+# - Alpaca: pip install alpaca-trade-api>=3.0.0
+# - MetaTrader 5: pip install MetaTrader5>=5.0.45 (Windows only)
+# - Coinbase: pip install cbpro>=1.1.4
