@@ -29,6 +29,7 @@ from ...domain.model import (
 from ...domain.events import BarReceived, OrderFilled
 from ...adapters.brokers import SimulatedBroker
 from ...adapters.repository.base import AbstractMarketDataRepository
+from ...adapters.notifications import NotificationManager
 from ...service_layer.unit_of_work import InMemoryUnitOfWork
 from ...service_layer.messagebus import MessageBus
 from ...service_layer.risk_manager import RiskManager, RiskConfig
@@ -66,6 +67,10 @@ class BacktestConfig:
 
     # Execution
     fill_immediately: bool = True
+
+    # Notifications
+    enable_notifications: bool = False  # Enable notifications during backtest
+    notification_manager: Optional[NotificationManager] = None
 
     # Logging
     log_level: str = "INFO"
@@ -212,6 +217,14 @@ class BacktestEngine:
                 max_daily_loss_pct=config.max_daily_loss_pct,
             ))
 
+        # Notification Manager
+        if config.notification_manager:
+            self.notification_manager = config.notification_manager
+        else:
+            self.notification_manager = NotificationManager()
+
+        self.enable_notifications = config.enable_notifications
+
         # Performance tracking
         self.equity_history: List[Dict] = []
         self.peak_equity = config.initial_capital
@@ -242,6 +255,18 @@ class BacktestEngine:
 
             # Calculate results
             result = await self._calculate_results(start_time)
+
+            # Send backtest completion notification
+            if self.enable_notifications:
+                await self.notification_manager.notify_daily_summary(
+                    pnl=float(result.total_return),
+                    pnl_pct=float(result.total_return_pct),
+                    trades_count=result.total_trades,
+                    win_rate=float(result.win_rate),
+                    final_equity=float(result.final_equity),
+                    sharpe_ratio=float(result.sharpe_ratio),
+                    max_drawdown=float(result.max_drawdown),
+                )
 
             logger.info("Backtest completed successfully")
             return result
@@ -342,6 +367,17 @@ class BacktestEngine:
 
                     if is_valid:
                         await self.broker.submit_order(order)
+
+                        # Notify order executed (if notifications enabled)
+                        if self.enable_notifications:
+                            await self.notification_manager.notify_trade_executed(
+                                asset_symbol=order.asset.symbol,
+                                side=order.side.value,
+                                quantity=float(order.quantity),
+                                price=float(order.limit_price or 0),
+                                order_id=order.order_id,
+                                timestamp=event.bar.timestamp.isoformat()
+                            )
                     else:
                         # Log risk violations
                         violation_msgs = [v.message for v in violations if v.severity == "ERROR"]
@@ -349,6 +385,16 @@ class BacktestEngine:
                             f"Order {order.order_id} rejected by risk manager: "
                             f"{'; '.join(violation_msgs)}"
                         )
+
+                        # Notify order rejected (if notifications enabled)
+                        if self.enable_notifications:
+                            await self.notification_manager.notify_order_rejected(
+                                asset_symbol=order.asset.symbol,
+                                side=order.side.value,
+                                quantity=float(order.quantity),
+                                reason="; ".join(violation_msgs),
+                                order_id=order.order_id
+                            )
 
         except Exception as e:
             logger.error(f"Error in strategy: {e}", exc_info=True)

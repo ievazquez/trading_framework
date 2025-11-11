@@ -53,6 +53,15 @@ A robust, event-driven trading framework built with enterprise architectural pat
 - **Pre-Trade Validation**: All orders validated before execution
 - **Risk Violations Tracking**: Comprehensive violation logging
 
+### Notifications & Alerts
+- **Multi-Channel Support**: Email, Telegram, Slack, Discord, Webhooks
+- **Real-Time Alerts**: Trade executions, order rejections, position closes
+- **Customizable Filters**: Filter by level, tags, or custom rules
+- **Rich Formatting**: HTML emails, formatted Telegram/Slack messages
+- **Event-Driven**: Automatic notifications based on trading events
+- **Flexible Configuration**: Enable/disable channels independently
+- **Notification History**: Track all sent notifications
+
 ## 📁 Project Structure
 
 ```
@@ -252,6 +261,64 @@ else:
 metrics = risk_manager.get_risk_metrics(account)
 print(f"Current leverage: {metrics['leverage']:.2f}x")
 print(f"Daily P&L: ${metrics['daily_pnl']:.2f}")
+```
+
+#### 5. Setting Up Notifications
+
+```python
+from trading_framework.adapters.notifications import (
+    NotificationManager,
+    ConsoleNotifier,
+    TelegramNotifier,
+    EmailNotifier,
+    SlackNotifier,
+)
+
+# Create notification manager
+notification_manager = NotificationManager()
+
+# Add console notifier (for testing)
+console = ConsoleNotifier({
+    "enabled": True,
+    "min_level": "INFO",
+    "colored": True,
+})
+notification_manager.add_notifier(console)
+
+# Add Telegram notifier
+telegram = TelegramNotifier({
+    "enabled": True,
+    "bot_token": "YOUR_BOT_TOKEN",  # From @BotFather
+    "chat_ids": ["YOUR_CHAT_ID"],
+    "min_level": "SUCCESS",  # Only trades and above
+})
+notification_manager.add_notifier(telegram)
+
+# Add Email notifier
+email = EmailNotifier({
+    "enabled": True,
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "smtp_user": "your_email@gmail.com",
+    "smtp_password": "your_app_password",
+    "from_email": "your_email@gmail.com",
+    "to_emails": ["recipient@example.com"],
+    "min_level": "WARNING",  # Only important alerts
+})
+notification_manager.add_notifier(email)
+
+# Use with backtest
+config = BacktestConfig(
+    # ... other config ...
+    enable_notifications=True,
+    notification_manager=notification_manager,
+)
+
+# Notifications will be sent automatically for:
+# - Trade executions
+# - Order rejections
+# - Position closes
+# - Backtest completion summary
 ```
 
 ## 📊 Example: SMA Crossover Strategy

@@ -176,3 +176,64 @@ monitoring:
   alerts:
     max_drawdown_pct: 0.15
     min_equity: 80000
+
+# Notifications
+notifications:
+  enabled: true
+
+  # Console notifications (for development/testing)
+  console:
+    enabled: true
+    min_level: INFO  # INFO, SUCCESS, WARNING, ERROR, CRITICAL
+    colored: true
+
+  # Email notifications (via SMTP)
+  email:
+    enabled: false
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    smtp_user: ${EMAIL_USER}  # Use environment variables for security
+    smtp_password: ${EMAIL_PASSWORD}
+    from_email: ${EMAIL_USER}
+    to_emails:
+      - recipient@example.com
+    use_tls: true
+    min_level: SUCCESS  # Only send trades and above
+
+  # Telegram notifications
+  telegram:
+    enabled: false
+    bot_token: ${TELEGRAM_BOT_TOKEN}
+    chat_ids:
+      - ${TELEGRAM_CHAT_ID}
+    parse_mode: HTML  # HTML or Markdown
+    min_level: SUCCESS
+    include_tags:  # Only notify for these tags
+      - trade
+      - risk
+
+  # Slack notifications (Incoming Webhooks)
+  slack:
+    enabled: false
+    webhook_url: ${SLACK_WEBHOOK_URL}
+    channel: "#trading-alerts"
+    username: Trading Bot
+    icon_emoji: ":chart_with_upwards_trend:"
+    min_level: WARNING
+
+  # Discord webhook
+  discord:
+    enabled: false
+    webhook_url: ${DISCORD_WEBHOOK_URL}
+    username: Trading Bot
+    min_level: INFO
+
+  # Custom webhook (send to your API)
+  custom_webhook:
+    enabled: false
+    url: https://your-api.com/notifications
+    method: POST
+    headers:
+      Content-Type: application/json
+      Authorization: Bearer ${API_TOKEN}
+    min_level: INFO
