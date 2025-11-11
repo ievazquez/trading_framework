@@ -31,6 +31,7 @@ from ...adapters.brokers import SimulatedBroker
 from ...adapters.repository.base import AbstractMarketDataRepository
 from ...service_layer.unit_of_work import InMemoryUnitOfWork
 from ...service_layer.messagebus import MessageBus
+from ...service_layer.risk_manager import RiskManager, RiskConfig
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,9 @@ class BacktestConfig:
     # Risk management
     max_position_size_pct: Decimal = Decimal("0.1")  # 10% of portfolio
     max_leverage: Decimal = Decimal("1.0")  # No leverage by default
+    max_open_positions: int = 10
+    max_daily_loss_pct: Decimal = Decimal("0.05")  # 5% daily loss limit
+    risk_config: Optional[RiskConfig] = None  # Optional custom risk config
 
     # Execution
     fill_immediately: bool = True
@@ -95,6 +99,12 @@ class BacktestResult:
     total_commission: Decimal = Decimal("0")
     total_slippage: Decimal = Decimal("0")
 
+    # Risk metrics
+    risk_violations: int = 0
+    orders_rejected_by_risk: int = 0
+    max_leverage_used: Decimal = Decimal("0")
+    risk_violation_summary: Dict[str, int] = field(default_factory=dict)
+
     # Equity curve
     equity_curve: List[Dict] = field(default_factory=list)
 
@@ -130,6 +140,14 @@ class BacktestResult:
         print(f"\nCosts:")
         print(f"  Total Commission: ${self.total_commission:,.2f}")
         print(f"  Total Slippage: ${self.total_slippage:,.2f}")
+        print(f"\nRisk Management:")
+        print(f"  Orders Rejected by Risk: {self.orders_rejected_by_risk}")
+        print(f"  Total Risk Violations: {self.risk_violations}")
+        print(f"  Max Leverage Used: {self.max_leverage_used:.2f}x")
+        if self.risk_violation_summary:
+            print(f"  Violations by Type:")
+            for vtype, count in self.risk_violation_summary.items():
+                print(f"    - {vtype}: {count}")
         print(f"\nExecution Time: {self.duration_seconds:.2f} seconds")
         print("="*60 + "\n")
 
@@ -182,6 +200,18 @@ class BacktestEngine:
         self.uow = InMemoryUnitOfWork()
         self.message_bus = MessageBus()
 
+        # Risk Manager
+        if config.risk_config:
+            self.risk_manager = RiskManager(config.risk_config)
+        else:
+            # Create default risk config from backtest config
+            self.risk_manager = RiskManager(RiskConfig(
+                max_position_size_pct=config.max_position_size_pct,
+                max_leverage=config.max_leverage,
+                max_open_positions=config.max_open_positions,
+                max_daily_loss_pct=config.max_daily_loss_pct,
+            ))
+
         # Performance tracking
         self.equity_history: List[Dict] = []
         self.peak_equity = config.initial_capital
@@ -227,6 +257,9 @@ class BacktestEngine:
 
         # Store account in UoW
         self.uow.accounts.add(self.account)
+
+        # Initialize risk manager daily tracking
+        self.risk_manager.update_daily_equity(self.account)
 
         logger.info(f"Initialized account with ${self.config.initial_capital:,.2f}")
 
@@ -293,6 +326,7 @@ class BacktestEngine:
                 "broker": self.broker,
                 "uow": self.uow,
                 "bar": event.bar,
+                "risk_manager": self.risk_manager,
             }
 
             # Strategy can return orders to submit
@@ -303,7 +337,18 @@ class BacktestEngine:
                     orders = [orders]
 
                 for order in orders:
-                    await self.broker.submit_order(order)
+                    # Validate order with risk manager
+                    is_valid, violations = self.risk_manager.validate_order(order, self.account)
+
+                    if is_valid:
+                        await self.broker.submit_order(order)
+                    else:
+                        # Log risk violations
+                        violation_msgs = [v.message for v in violations if v.severity == "ERROR"]
+                        logger.warning(
+                            f"Order {order.order_id} rejected by risk manager: "
+                            f"{'; '.join(violation_msgs)}"
+                        )
 
         except Exception as e:
             logger.error(f"Error in strategy: {e}", exc_info=True)
@@ -365,6 +410,14 @@ class BacktestEngine:
         # For now, use simplified metrics
         total_trades = len([o for o in self.uow.orders.list() if o.status.value == "FILLED"])
 
+        # Risk metrics
+        risk_metrics = self.risk_manager.get_risk_metrics(self.account)
+        violation_summary = self.risk_manager.get_violation_summary()
+        total_violations = len(self.risk_manager.violation_history)
+
+        # Count orders rejected
+        rejected_orders = len([o for o in self.uow.orders.list() if o.status.value == "REJECTED"])
+
         result = BacktestResult(
             config=self.config,
             total_return=total_return,
@@ -374,6 +427,12 @@ class BacktestEngine:
             max_drawdown=self.max_drawdown,
             max_drawdown_pct=(self.max_drawdown / self.peak_equity * 100) if self.peak_equity > 0 else Decimal("0"),
             total_trades=total_trades,
+            # Risk metrics
+            risk_violations=total_violations,
+            orders_rejected_by_risk=rejected_orders,
+            max_leverage_used=Decimal(str(risk_metrics.get("leverage", 0))),
+            risk_violation_summary=violation_summary,
+            # Equity and positions
             equity_curve=self.equity_history,
             final_equity=final_equity,
             final_cash=self.account.cash_balance,

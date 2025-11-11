@@ -75,23 +75,39 @@ strategy:
 
 # Risk Management
 risk_management:
-  # Maximum position size as percentage of portfolio
-  max_position_size_pct: 0.1
+  # Position sizing
+  max_position_size_pct: 0.1  # Max 10% of portfolio per position
+  max_position_value: 15000  # Max $15k per position (optional)
 
-  # Maximum leverage allowed
-  max_leverage: 1.0
+  # Leverage limits
+  max_leverage: 1.0  # No leverage by default
 
-  # Maximum number of open positions
-  max_open_positions: 10
+  # Portfolio limits
+  max_open_positions: 10  # Max 10 concurrent positions
+  max_positions_per_asset: 1  # One position per asset
 
-  # Stop loss percentage
-  stop_loss_pct: 0.02
+  # Circuit breakers (stop trading if limits breached)
+  max_daily_loss_pct: 0.05  # Stop if lose 5% in a day
+  max_daily_loss_absolute: 5000  # Or $5000 absolute loss
 
-  # Take profit percentage
-  take_profit_pct: 0.05
+  # Capital requirements
+  min_equity: 50000  # Stop trading if equity drops below $50k
+  reserve_capital_pct: 0.1  # Keep 10% in cash reserve
 
-  # Maximum daily loss (circuit breaker)
-  max_daily_loss_pct: 0.05
+  # Concentration limits
+  max_sector_concentration_pct: 0.3  # Max 30% in one sector
+  max_asset_type_concentration_pct: 0.5  # Max 50% in one asset type
+
+  # Portfolio risk exposure
+  max_portfolio_heat_pct: 0.2  # Max 20% of portfolio at risk
+  max_risk_per_trade_pct: 0.02  # Max 2% risk per trade
+
+  # Enforcement flags
+  enforce_position_limits: true
+  enforce_leverage_limits: true
+  enforce_daily_loss_limits: true
+  enforce_concentration_limits: true
+  allow_warnings: true  # Allow warnings without rejection
 
 # Backtesting Configuration
 backtest:

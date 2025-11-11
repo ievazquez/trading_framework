@@ -6,11 +6,12 @@ They use the Unit of Work to access repositories and manage transactions.
 """
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from ...domain.commands import SubmitOrder, CancelOrder
 from ...domain.events import OrderFilled, Event
 from ..unit_of_work.base import AbstractUnitOfWork
+from ..risk_manager import RiskManager
 
 
 logger = logging.getLogger(__name__)
@@ -18,12 +19,18 @@ logger = logging.getLogger(__name__)
 
 def handle_submit_order(
     command: SubmitOrder,
-    uow: AbstractUnitOfWork
+    uow: AbstractUnitOfWork,
+    risk_manager: Optional[RiskManager] = None
 ) -> List[Event]:
     """
     Handle SubmitOrder command.
 
     Validates and submits an order through the broker adapter.
+
+    Args:
+        command: SubmitOrder command
+        uow: Unit of Work
+        risk_manager: Optional RiskManager for validation
     """
     logger.info(f"Handling SubmitOrder command for order {command.order.order_id}")
 
@@ -33,19 +40,28 @@ def handle_submit_order(
         if not account:
             raise ValueError(f"Account {command.account_id} not found")
 
-        # Validate order (risk checks, sufficient balance, etc.)
-        # This would typically involve a risk management service
         order = command.order
 
-        # Check sufficient balance (simplified)
-        estimated_cost = order.quantity * (
-            order.limit_price or order.asset.min_price_increment or 0
-        )
-        if account.available_cash < estimated_cost:
-            order.reject("Insufficient funds")
-            uow.orders.add(order)
-            uow.commit()
-            return uow.collect_new_events()
+        # Risk management validation
+        if risk_manager:
+            is_valid, violations = risk_manager.validate_order(order, account)
+
+            if not is_valid:
+                # Reject order due to risk violations
+                violation_messages = [v.message for v in violations if v.severity == "ERROR"]
+                rejection_reason = "Risk check failed: " + "; ".join(violation_messages)
+
+                logger.warning(f"Order {order.order_id} rejected: {rejection_reason}")
+                order.reject(rejection_reason)
+                uow.orders.add(order)
+                uow.commit()
+                return uow.collect_new_events()
+
+            # Log warnings if any
+            warnings = [v for v in violations if v.severity == "WARNING"]
+            if warnings:
+                for warning in warnings:
+                    logger.info(f"Risk warning for order {order.order_id}: {warning.message}")
 
         # Submit order to broker
         # In a real implementation, this would call the broker adapter

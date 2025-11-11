@@ -11,6 +11,7 @@ A robust, event-driven trading framework built with enterprise architectural pat
 - **Unit of Work Pattern**: Transaction management
 - **Message Bus**: Central event/command routing
 - **CQRS**: Command Query Responsibility Segregation
+- **Risk Management**: Comprehensive pre-trade risk validation
 
 ### Multi-Broker Support
 - **Interactive Brokers**: Forex, stocks, futures, options
@@ -42,10 +43,15 @@ A robust, event-driven trading framework built with enterprise architectural pat
 - **Event-Driven Execution**: Realistic order handling
 
 ### Risk Management
-- Position sizing
-- Maximum leverage limits
-- Drawdown protection
-- Portfolio-level risk controls
+- **Position Sizing Limits**: Maximum position size as % of portfolio
+- **Leverage Control**: Maximum leverage enforcement
+- **Circuit Breakers**: Daily loss limits that halt trading
+- **Portfolio Limits**: Maximum number of open positions
+- **Concentration Limits**: Sector and asset type diversification
+- **Capital Requirements**: Minimum equity and reserve cash
+- **Portfolio Heat**: Total risk exposure monitoring
+- **Pre-Trade Validation**: All orders validated before execution
+- **Risk Violations Tracking**: Comprehensive violation logging
 
 ## 📁 Project Structure
 
@@ -211,6 +217,41 @@ broker = BinanceBroker({
 # Connect and trade
 await broker.connect()
 order_id = await broker.submit_order(order)
+```
+
+#### 4. Using Risk Management
+
+```python
+from trading_framework.service_layer.risk_manager import RiskManager, RiskConfig
+from decimal import Decimal
+
+# Configure risk management
+risk_config = RiskConfig(
+    max_position_size_pct=Decimal("0.1"),  # Max 10% per position
+    max_leverage=Decimal("2.0"),           # Max 2x leverage
+    max_open_positions=10,                 # Max 10 positions
+    max_daily_loss_pct=Decimal("0.05"),    # 5% daily loss limit
+    enforce_position_limits=True,
+    enforce_leverage_limits=True,
+    enforce_daily_loss_limits=True,
+)
+
+# Create risk manager
+risk_manager = RiskManager(risk_config)
+
+# Validate order before submission
+is_valid, violations = risk_manager.validate_order(order, account)
+
+if is_valid:
+    await broker.submit_order(order)
+else:
+    for violation in violations:
+        print(f"Risk violation: {violation.message}")
+
+# Get risk metrics
+metrics = risk_manager.get_risk_metrics(account)
+print(f"Current leverage: {metrics['leverage']:.2f}x")
+print(f"Daily P&L: ${metrics['daily_pnl']:.2f}")
 ```
 
 ## 📊 Example: SMA Crossover Strategy
