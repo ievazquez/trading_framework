@@ -57,6 +57,15 @@ MessageBus
 - Command handlers: Execute business operations
 - Event handlers: React to domain events
 
+**Risk Manager**:
+- Pre-trade risk validation
+- Position size limits
+- Leverage control
+- Circuit breakers
+- Daily loss limits
+- Concentration limits
+- Real-time risk metrics
+
 ### 3. Adapters Layer (Infrastructure)
 
 Connects the domain to external systems.
@@ -114,6 +123,50 @@ AbstractRepository
     └── update()
 ```
 
+#### Notification Adapters:
+
+All notifiers implement the `AbstractNotifier` interface:
+
+```python
+AbstractNotifier
+├── send(notification) -> bool
+├── should_notify(notification) -> bool
+└── Filtering by:
+    ├── Level (INFO, SUCCESS, WARNING, ERROR, CRITICAL)
+    ├── Tags (trade, risk, position, etc.)
+    └── Include/exclude lists
+```
+
+**Notification Manager**:
+- Coordinates multiple notification channels
+- Concurrent notification sending
+- Notification history tracking
+- Convenience methods for common events
+
+**Implementations**:
+- `ConsoleNotifier`: Colored terminal output for development
+- `EmailNotifier`: SMTP email with HTML formatting
+- `TelegramNotifier`: Telegram Bot API integration
+- `SlackNotifier`: Slack Incoming Webhooks
+- `WebhookNotifier`: Generic webhooks (Discord, custom APIs)
+
+**Notification Flow**:
+```
+Trading Event → NotificationManager → [Filters] → Multiple Channels
+                                                  ├─> Console
+                                                  ├─> Email
+                                                  ├─> Telegram
+                                                  ├─> Slack
+                                                  └─> Webhooks
+```
+
+**Automatic Notifications For**:
+- ✅ Trade executions
+- ⚠️ Order rejections (risk violations)
+- 💰 Position closes with P&L
+- 🚨 Risk violations and circuit breakers
+- 📊 Daily summaries and backtest completion
+
 ### 4. Entrypoints Layer
 
 User-facing interfaces for the framework.
@@ -125,7 +178,7 @@ User-facing interfaces for the framework.
 
 ## Event Flow
 
-### 1. Backtesting Event Flow
+### 1. Backtesting Event Flow (with Risk Management & Notifications)
 
 ```
 CSV File → DataSource.get_bars()
@@ -144,17 +197,29 @@ For each bar:
     ↓
     Strategy returns Order(s)
     ↓
-    Broker.submit_order()
+    RiskManager.validate_order()  ← PRE-TRADE VALIDATION
     ↓
-    Order state changes
-    ↓
-    OrderFilled event
-    ↓
-    handle_order_filled() updates Position
-    ↓
-    PositionUpdated event
+    ├─ Valid? → Broker.submit_order()
+    │               ↓
+    │           Order state changes
+    │               ↓
+    │           OrderFilled event
+    │               ↓
+    │           NotificationManager.notify_trade_executed() 📧
+    │               ↓
+    │           handle_order_filled() updates Position
+    │               ↓
+    │           PositionUpdated event
+    │
+    └─ Invalid? → Order rejected
+                    ↓
+                NotificationManager.notify_order_rejected() ⚠️
     ↓
     Loop continues...
+    ↓
+Backtest completes
+    ↓
+NotificationManager.notify_daily_summary() 📊
 ```
 
 ### 2. Live Trading Event Flow (Future)
@@ -162,27 +227,33 @@ For each bar:
 ```
 Broker WebSocket → New Tick
     ↓
-    TickReceived event
+    TickReceived event → MessageBus
     ↓
     Strategy processes tick
     ↓
-    Strategy issues Command
+    Strategy issues SubmitOrder command
     ↓
-    SubmitOrder command
+    MessageBus → handle_submit_order()
     ↓
-    handle_submit_order()
+    RiskManager.validate_order()  ← PRE-TRADE VALIDATION
     ↓
-    Risk checks (RiskManager)
-    ↓
-    Broker API call
-    ↓
-    OrderSubmitted event
-    ↓
-    Broker notification → OrderFilled
-    ↓
-    OrderFilled event
-    ↓
-    Position/Account updates
+    ├─ Valid? → Broker API call
+    │               ↓
+    │           OrderSubmitted event
+    │               ↓
+    │           Broker fills order → OrderFilled event
+    │               ↓
+    │           NotificationManager.notify_trade_executed() 📧
+    │               ↓
+    │           Position/Account updates
+    │               ↓
+    │           PositionUpdated event
+    │
+    └─ Invalid? → Order rejected
+                    ↓
+                NotificationManager.notify_order_rejected() ⚠️
+                    ↓
+                OrderRejected event
 ```
 
 ## Design Patterns
@@ -390,11 +461,17 @@ Aggregate → Events → MessageBus → Event Handlers → Side Effects
    - Strategy signals
    - Position P&L
    - System health
+   - Risk violations tracking
+   - Notification delivery success rates
 
-3. **Alerting**:
+3. **Alerting via Notification System**:
+   - Trade executions (real-time)
+   - Order rejections and risk violations
    - Drawdown thresholds
    - Connection failures
-   - Unusual activity
+   - Circuit breaker activations
+   - Daily performance summaries
+   - Multi-channel delivery: Email, Telegram, Slack, Discord, Custom webhooks
 
 ## Extension Points
 
@@ -418,6 +495,29 @@ Aggregate → Events → MessageBus → Event Handlers → Side Effects
 2. Return `Order` objects or `None`
 3. Maintain internal state as needed
 4. Use context for account/position access
+
+### Adding a New Notifier
+
+1. Implement `AbstractNotifier`
+2. Override `send(notification)` method
+3. Implement channel-specific formatting
+4. Handle authentication/credentials securely
+5. Register with `NotificationManager`
+6. Configure filtering (min_level, tags, include/exclude)
+
+Example:
+```python
+class MyCustomNotifier(AbstractNotifier):
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__("MyNotifier", config)
+        self.api_key = config.get("api_key")
+
+    async def send(self, notification: Notification) -> bool:
+        # Format and send notification
+        payload = self._format_notification(notification)
+        # Make API call to custom service
+        return success
+```
 
 ## References
 
